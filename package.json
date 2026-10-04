@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx --test test/*.test.ts",
     "cases": "tsx scripts/run-cases.ts",
+    "record-cases": "tsx scripts/record-cases.ts",
     "set-record": "tsx scripts/set-record.ts"
   },
   "engines": {
