@@ -1,7 +1,7 @@
 import { createPublicClient, http, type PublicClient } from "viem";
 import { sepolia } from "viem/chains";
 import { normalize } from "viem/ens";
-import { PREFERENCE_KEY } from "./preferences.ts";
+import { PREFERENCE_NAMES, recordKey, type RawRecords } from "./preferences.ts";
 
 export class InvalidEnsNameError extends Error {
   constructor(message = "That is not a valid ENS name.") {
@@ -34,15 +34,19 @@ function defaultClient(): PublicClient {
 
 export interface RecordRead {
   ensName: string; // normalized
-  raw: string | null; // null when the name or record is unset
+  raw: RawRecords; // null per preference when unset
 }
 
-/** Read the preferences text record. Normalizes the name first. */
-export async function readPreferenceRecord(
+/** Read each preference text record. Normalizes the name first. */
+export async function readPreferenceRecords(
   input: string,
   rpc: PublicClient = defaultClient(),
 ): Promise<RecordRead> {
   const ensName = normalizeEnsName(input);
-  const raw = await rpc.getEnsText({ name: ensName, key: PREFERENCE_KEY });
+  const values = await Promise.all(
+    PREFERENCE_NAMES.map((n) => rpc.getEnsText({ name: ensName, key: recordKey(n) })),
+  );
+  const raw: RawRecords = {};
+  PREFERENCE_NAMES.forEach((n, i) => (raw[n] = values[i] ?? null));
   return { ensName, raw };
 }

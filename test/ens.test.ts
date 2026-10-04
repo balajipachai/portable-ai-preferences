@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { PublicClient } from "viem";
-import { InvalidEnsNameError, normalizeEnsName, readPreferenceRecord } from "../src/ens.ts";
-import { PREFERENCE_KEY } from "../src/preferences.ts";
+import { InvalidEnsNameError, normalizeEnsName, readPreferenceRecords } from "../src/ens.ts";
+import { PREFERENCE_NAMES, recordKey } from "../src/preferences.ts";
 
 test("names are ENSIP-15 normalized", () => {
   assert.equal(normalizeEnsName("  ANA.ETH "), "ana.eth");
@@ -23,14 +23,16 @@ test("resolution receives the normalized name, not raw input", async () => {
     },
   } as unknown as PublicClient;
 
-  const result = await readPreferenceRecord("ANA.ETH", fake);
-  assert.deepEqual(seen, [{ name: "ana.eth", key: PREFERENCE_KEY }]);
-  assert.equal(result.raw, null);
+  const result = await readPreferenceRecords("ANA.ETH", fake);
+  assert.equal(seen.length, PREFERENCE_NAMES.length);
+  assert.ok(seen.every((s) => s.name === "ana.eth"));
+  assert.deepEqual(seen.map((s) => s.key).sort(), PREFERENCE_NAMES.map(recordKey).sort());
+  assert.equal(result.raw.language, null);
 });
 
 test("an invalid name never reaches the resolver", async () => {
   let called = false;
   const fake = { getEnsText: async () => ((called = true), null) } as unknown as PublicClient;
-  await assert.rejects(readPreferenceRecord("not a name", fake), InvalidEnsNameError);
+  await assert.rejects(readPreferenceRecords("not a name", fake), InvalidEnsNameError);
   assert.equal(called, false);
 });

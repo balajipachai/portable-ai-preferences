@@ -3,7 +3,7 @@
 import { readFileSync } from "node:fs";
 import { chat } from "../src/llm.ts";
 import { buildMessages } from "../src/prompt.ts";
-import { parsePreferenceRecord } from "../src/preferences.ts";
+import { parsePreferenceRecords } from "../src/preferences.ts";
 
 interface Variant {
   label: string;
@@ -17,8 +17,7 @@ const { cases } = JSON.parse(
 let failures = 0;
 for (const c of cases) {
   for (const v of c.variants) {
-    const raw = v.record === null ? null : JSON.stringify(v.record);
-    const out = await chat(buildMessages(parsePreferenceRecord(raw).preferences, c.question));
+    const out = await chat(buildMessages(parsePreferenceRecords(v.record ?? {}).preferences, c.question));
     const words = out.split(/\s+/).filter(Boolean).length;
     const longest = Math.max(
       0,

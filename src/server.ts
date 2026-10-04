@@ -34,7 +34,6 @@ function publicView(r: Awaited<ReturnType<typeof resolvePreferences>>) {
     source: r.source,
     preferences: r.preferences,
     ignored: r.ignored,
-    unknownKeys: r.unknownKeys,
   };
 }
 

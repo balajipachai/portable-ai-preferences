@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { buildMessages } from "../src/prompt.ts";
-import { parsePreferenceRecord } from "../src/preferences.ts";
+import { parsePreferenceRecords } from "../src/preferences.ts";
 
 interface Variant {
   label: string;
@@ -25,8 +25,7 @@ for (const c of cases) {
     const systems = new Set<string>();
 
     for (const v of c.variants) {
-      const raw = v.record === null ? null : JSON.stringify(v.record);
-      const [system, user] = buildMessages(parsePreferenceRecord(raw).preferences, c.question);
+      const [system, user] = buildMessages(parsePreferenceRecords(v.record ?? {}).preferences, c.question);
       assert.ok(system && user);
       assert.equal(user.content, c.question, v.label);
       for (const s of v.expect.promptIncludes ?? []) assert.ok(system.content.includes(s), `${v.label}: missing "${s}"`);

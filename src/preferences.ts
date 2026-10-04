@@ -1,9 +1,11 @@
 import { z } from "zod";
 
-// ENS text record key holding the user's preferences as a small JSON object.
-export const PREFERENCE_KEY = "ai.preferences";
-// Records larger than this are treated as nonsense and ignored.
-export const MAX_RECORD_CHARS = 2000;
+// One ENS text record per preference, using an ENSIP-5 reverse-dot service-key
+// namespace, e.g. `app.portable-ai.language` = `pt`. Plain values, so they can be
+// edited as ordinary text records in the ENS app.
+export const KEY_NAMESPACE = "app.portable-ai";
+// Values longer than this are treated as nonsense before validation.
+export const MAX_VALUE_CHARS = 64;
 
 export const LANGUAGES = ["en", "pt", "es", "fr", "de", "it", "hi", "ja"] as const;
 export const SENTENCE_LENGTHS = ["short", "medium", "long"] as const;
@@ -32,66 +34,53 @@ export const DEFAULT_PREFERENCES: Readonly<Preferences> = Object.freeze({
   answerLength: "normal",
 });
 
+export type PreferenceName = keyof Preferences;
+export const PREFERENCE_NAMES = Object.keys(fieldSchemas) as PreferenceName[];
+
+export function recordKey(name: PreferenceName): string {
+  return `${KEY_NAMESPACE}.${name}`;
+}
+
+/** Raw text record values by preference name; null/undefined when unset. */
+export type RawRecords = Partial<Record<PreferenceName, string | null | undefined>>;
+
 export type PreferenceSource =
-  | "record" // at least one valid field came from the ENS record
-  | "default-unset" // record missing or empty
-  | "default-invalid"; // record present but unusable
+  | "record" // at least one valid value came from ENS
+  | "default-unset" // no preference records set on the name
+  | "default-invalid"; // records present but none usable
 
 export interface ParsedPreferences {
   preferences: Preferences;
   source: PreferenceSource;
-  // Names of known fields whose values were rejected (never raw record text).
-  ignored: string[];
-  unknownKeys: number;
-}
-
-const FIELD_NAMES = Object.keys(fieldSchemas) as (keyof Preferences)[];
-
-function defaults(source: PreferenceSource): ParsedPreferences {
-  return { preferences: { ...DEFAULT_PREFERENCES }, source, ignored: [], unknownKeys: 0 };
+  // Names of known preferences whose values were rejected (never raw record text).
+  ignored: PreferenceName[];
 }
 
 /**
- * Turn a raw ENS text record value (or null) into safe preferences.
+ * Turn raw ENS text record values into safe preferences.
  * Never throws; every failure mode ends in a defined default.
  */
-export function parsePreferenceRecord(raw: string | null | undefined): ParsedPreferences {
-  // Explicit branch: unset / empty record -> named default.
-  if (raw === null || raw === undefined || raw.trim() === "") {
-    return defaults("default-unset");
-  }
-  if (raw.length > MAX_RECORD_CHARS) {
-    return defaults("default-invalid");
-  }
+export function parsePreferenceRecords(raw: RawRecords): ParsedPreferences {
+  const prefs: Record<PreferenceName, string> = { ...DEFAULT_PREFERENCES };
+  const ignored: PreferenceName[] = [];
+  let present = 0;
+  let accepted = 0;
 
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return defaults("default-invalid");
-  }
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    return defaults("default-invalid");
-  }
-
-  const obj = parsed as Record<string, unknown>;
-  const result = defaults("record");
-  const prefs = result.preferences as Record<keyof Preferences, string>;
-
-  for (const name of FIELD_NAMES) {
-    if (!Object.hasOwn(obj, name)) continue;
-    const check = fieldSchemas[name].safeParse(obj[name]);
-    if (check.success) {
+  for (const name of PREFERENCE_NAMES) {
+    const value = raw[name];
+    // Explicit branch: unset / empty record -> keep the named default.
+    if (value === null || value === undefined || value.trim() === "") continue;
+    present++;
+    const check = value.length <= MAX_VALUE_CHARS ? fieldSchemas[name].safeParse(value.trim()) : null;
+    if (check?.success) {
       prefs[name] = check.data;
+      accepted++;
     } else {
-      result.ignored.push(name); // value discarded, default kept
+      ignored.push(name); // discarded, default kept
     }
   }
-  result.unknownKeys = Object.keys(obj).filter(
-    (k) => !(FIELD_NAMES as string[]).includes(k),
-  ).length;
 
-  const acceptedAny = FIELD_NAMES.some((n) => Object.hasOwn(obj, n) && !result.ignored.includes(n));
-  if (!acceptedAny) result.source = "default-invalid";
-  return result;
+  const source: PreferenceSource =
+    present === 0 ? "default-unset" : accepted === 0 ? "default-invalid" : "record";
+  return { preferences: prefs as Preferences, source, ignored };
 }

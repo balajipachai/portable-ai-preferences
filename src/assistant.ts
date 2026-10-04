@@ -1,7 +1,7 @@
-import { readPreferenceRecord, type RecordRead } from "./ens.ts";
+import { readPreferenceRecords, type RecordRead } from "./ens.ts";
 import { chat } from "./llm.ts";
 import { buildMessages, type ChatMessage } from "./prompt.ts";
-import { parsePreferenceRecord, type ParsedPreferences } from "./preferences.ts";
+import { parsePreferenceRecords, type ParsedPreferences } from "./preferences.ts";
 
 export interface Deps {
   readRecord: (name: string) => Promise<RecordRead>;
@@ -9,7 +9,7 @@ export interface Deps {
 }
 
 const defaultDeps: Deps = {
-  readRecord: (name) => readPreferenceRecord(name),
+  readRecord: (name) => readPreferenceRecords(name),
   chat: (messages) => chat(messages),
 };
 
@@ -22,7 +22,7 @@ export async function resolvePreferences(
   deps: Pick<Deps, "readRecord"> = defaultDeps,
 ): Promise<Resolved> {
   const { ensName, raw } = await deps.readRecord(name);
-  return { ensName, ...parsePreferenceRecord(raw) };
+  return { ensName, ...parsePreferenceRecords(raw) };
 }
 
 export async function answer(
